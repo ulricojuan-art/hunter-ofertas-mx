@@ -1,55 +1,64 @@
 import streamlit as st
 import requests
 
-# --- CONFIGURACIÓN PRIVADA (UlricSa Hunter) ---
+# --- CONFIGURACIÓN PRIVADA ---
 TOKEN_TELEGRAM = "7770546100:AAG8b5B9f2AC82eyqhAtbPM_cFbXX1lGqzA"
 CHAT_ID = "7704382386"
 
-st.set_page_config(page_title="UlricSa Hunter", page_icon="🚀", layout="centered")
+st.set_page_config(page_title="UlricSa Hunter", page_icon="🚀")
 
-# Estilo visual simple
 st.title("🚀 Mi Hunter de Ofertas")
-st.markdown("---")
-st.info("Configurado para enviar alertas automáticas a tu Telegram.")
+st.info("Configurado para alertas automáticas a tu Telegram.")
 
-# --- INTERFAZ DE USUARIO ---
-productos = st.text_input("¿Qué buscamos hoy? (ej: laptop, monitor, taladro):", "laptop, monitor")
-descuento_objetivo = st.slider("Descuento mínimo deseado %", 50, 95, 75)
+# --- INTERFAZ ---
+productos = st.text_input("¿Qué buscamos hoy? (ej: laptop, monitor):", "laptop, monitor")
+descuento_objetivo = st.slider("Descuento mínimo %", 50, 95, 75)
 
 def enviar_telegram(mensaje):
     url = f"https://api.telegram.org/bot{TOKEN_TELEGRAM}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": mensaje,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": CHAT_ID, "text": mensaje, "parse_mode": "Markdown"}
     try:
         requests.post(url, data=payload)
-    except Exception as e:
-        st.error(f"Error al enviar a Telegram: {e}")
+    except:
+        st.error("No se pudo enviar el mensaje a Telegram.")
 
-# --- LÓGICA DE BÚSQUEDA ---
-if st.button("¡Rastrear Ofertas Ahora!"):
+if st.button("¡Rastrear Ofertas!"):
     lista_productos = [p.strip() for p in productos.split(",")]
-    st.write(f"🔎 Escaneando Mercado Libre México para: **{', '.join(lista_productos)}**")
+    st.write(f"🔎 Buscando: **{', '.join(lista_productos)}**")
     
     encontrados = 0
-    barra_progreso = st.progress(0)
     
-    for idx, prod in enumerate(lista_productos):
-        # Llamada a la API de Mercado Libre México
+    for prod in lista_productos:
         url_api = f"https://api.mercadolibre.com/sites/MLM/search?q={prod}"
+        
         try:
             response = requests.get(url_api).json()
             articulos = response.get('results', [])
             
             for item in articulos:
-                precio_actual = item.get('price')
-                precio_lista = item.get('original_price')
+                p_actual = item.get('price')
+                p_lista = item.get('original_price')
                 
-                if precio_lista and precio_actual:
-                    ahorro = 100 - (precio_actual * 100 / precio_lista)
+                if p_lista and p_actual:
+                    ahorro = 100 - (p_actual * 100 / p_lista)
                     
                     if ahorro >= descuento_objetivo:
                         encontrados += 1
                         link = item.get('permalink')
+                        titulo = item.get('title')
+                        
+                        # Alerta para Telegram
+                        msg = (f"🔥 *OFERTÓN ({round(ahorro)}%)*\n\n"
+                               f"📦 {titulo}\n"
+                               f"💰 *Precio: ${p_actual:,.2f}*\n"
+                               f"🔗 [COMPRAR AQUÍ]({link})")
+                        
+                        st.success(f"✅ {round(ahorro)}% - {titulo}")
+                        enviar_telegram(msg)
+        except Exception as e:
+            st.error(f"Error buscando {prod}: {e}")
+
+    if encontrados > 0:
+        st.balloons()
+    else:
+        st.warning("No encontré nada con ese descuento ahorita.")
